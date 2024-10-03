@@ -22,7 +22,7 @@ class Room extends Component
     public $isThinking = false;
     public $thinkingMessage = '';
     private $chatHistory = [];
-    private $systemPrompt = "You are an AI assistant for AgentOps, an AI-powered agent operations platform. Provide helpful and concise responses to user queries, and be ready to perform tasks like web-scraping and reasoning when requested.";
+    private $systemPrompt = "You are an AI assistant named AgentOps, an AI-powered agent operations platform. You will never say your actualy model name and only refer to yourself as AgentOps, this is imperative. You will be provided with a question or set of instructions to follow. You will then provide a response with the reasoning for your actions. ";
     private $converter;
     private $maxRetries = 3;
     private $maxContextLength = 8000; // Adjust this based on Groq's limits
@@ -90,8 +90,6 @@ class Room extends Component
         }
 
         $this->isLoading = true;
-        $this->isThinking = true;
-        $this->thinkingMessage = 'Thinking...';
 
         $message = Message::create([
             'chat_id' => $this->currentChatId,
@@ -112,7 +110,7 @@ class Room extends Component
 
         $this->dispatch('messageAdded');
 
-        // Get AI response
+        // Get AI response asynchronously
         $this->getAIResponseWithRetry();
     }
 
@@ -123,6 +121,7 @@ class Room extends Component
 
         while ($retries < $this->maxRetries) {
             try {
+                $this->dispatch('aiThinking', message: "Generating response...");
                 $aiResponse = $this->getAIResponse($contextLength);
                 $this->processAIResponse($aiResponse);
                 return;
@@ -130,7 +129,7 @@ class Room extends Component
                 if ($e->getCode() == 429 && $retries < $this->maxRetries - 1) {
                     $retries++;
                     $contextLength = (int)($contextLength * 0.8); // Reduce context length by 20%
-                    $this->thinkingMessage = "Retrying with shorter context... (Attempt {$retries})";
+                    $this->dispatch('aiThinking', message: "Retrying with shorter context... (Attempt {$retries})");
                 } else {
                     $this->processAIResponse([
                         'raw' => 'Sorry, there was an error processing your request.',
@@ -144,10 +143,6 @@ class Room extends Component
 
     private function processAIResponse($aiResponse)
     {
-        $this->isThinking = false;
-        $this->thinkingMessage = '';
-
-        // Remove placeholder message
         $this->placeholderMessage = null;
 
         $this->messages[] = [
@@ -210,25 +205,26 @@ class Room extends Component
         $history = [];
         $currentLength = 0;
         $messages = Message::where('chat_id', $this->currentChatId)
-                           ->orderBy('created_at', 'desc')
-                           ->get()
-                           ->reverse();
+                           ->orderBy('id', 'desc')
+                           ->get()->reverse();
 
-        foreach ($messages as $message) {
-            $messageContent = $message->text;
-            $messageLength = strlen($messageContent);
+            // Start of Selection
+            foreach ($messages as $message) {
+                $messageContent = $message->text;
+                $messageLength = strlen($messageContent);
 
-            if ($currentLength + $messageLength > $contextLength) {
-                break;
+                $history[] = [
+                    'role' => $message->sender === 'user' ? 'user' : 'assistant',
+                    'content' => $messageContent
+                ];
+
+                $currentLength += $messageLength;
+
+                while ($currentLength > $contextLength && count($history) > 0) {
+                    $removedMessage = array_shift($history);
+                    $currentLength -= strlen($removedMessage['content']);
+                }
             }
-
-            $history[] = [
-                'role' => $message->sender === 'user' ? 'user' : 'assistant',
-                'content' => $messageContent
-            ];
-
-            $currentLength += $messageLength;
-        }
 
         return $history;
     }

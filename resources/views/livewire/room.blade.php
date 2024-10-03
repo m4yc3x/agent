@@ -8,7 +8,7 @@
 
         <!-- Chat Messages -->
         <div class="flex-1 overflow-hidden flex flex-col">
-            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-messages" wire:poll.visible>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-messages">
                 @foreach ($messages as $message)
                     <div class="chat {{ $message['sender'] === 'user' ? 'chat-end' : 'chat-start' }}">
                         <div class="chat-image avatar">
@@ -45,7 +45,7 @@
                         </div>
                         <div class="chat-bubble chat-bubble-secondary">
                             <div class="flex items-center">
-                                <span class="mr-2">{{ $placeholderMessage['content'] }}</span>
+                                <span class="mr-2" id="ai-thinking-message">{{ $placeholderMessage['content'] }}</span>
                                 <span class="loading loading-dots loading-sm"></span>
                             </div>
                         </div>
@@ -127,7 +127,15 @@
         scrollToBottom();
 
         // Scroll to bottom when new messages are added
-        Livewire.on('scrollChat', scrollToBottom);
+        Livewire.on('messageAdded', scrollToBottom);
+
+        // Update AI thinking message
+        Livewire.on('aiThinking', ({ message }) => {
+            const aiThinkingMessage = document.getElementById('ai-thinking-message');
+            if (aiThinkingMessage) {
+                aiThinkingMessage.textContent = message;
+            }
+        });
 
         // Scroll to bottom when the thinking message appears or disappears
         new MutationObserver(scrollToBottom).observe(chatMessages, { childList: true, subtree: true });
