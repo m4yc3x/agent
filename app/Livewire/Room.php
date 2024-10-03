@@ -28,6 +28,8 @@ class Room extends Component
     private $maxContextLength = 8000; // Adjust this based on Groq's limits
     public $placeholderMessage = null;
     public $isFirstMessage = true;
+    public $model = 'llama-3.1-70b-versatile';
+    public $titleModel = 'llama-3.1-8b-instant';
 
     public function boot()
     {
@@ -301,7 +303,7 @@ class Room extends Component
             'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
         ])->post($url, [
-            'model' => 'gemma-7b-it',
+            'model' => $this->model,
             'messages' => $messages,
         ]);
 
@@ -385,7 +387,7 @@ class Room extends Component
             'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
         ])->post($url, [
-            'model' => 'gemma-7b-it',
+            'model' => $this->titleModel,
             'messages' => [
                 ['role' => 'system', 'content' => 'Generate a very short 3-5 word title to describe the following question. Only reply with 3-5 words with no formatting or markdown.'],
                 ['role' => 'user', 'content' => $this->userMessage],
