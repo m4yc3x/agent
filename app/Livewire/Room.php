@@ -137,27 +137,27 @@ class Room extends Component
 
                 $this->dispatch('aiThinking', message: "Generating initial response...");
                 $this->dispatch('$refresh');
-                usleep(100000); // 0.1 second delay
+                usleep(200000); // 0.2 second delay
                 $initialResponse = $this->getAIResponse($contextLength, $userPrompt, true); // Include chat history
 
                 $this->dispatch('aiThinking', message: "Verifying response...");
                 $this->dispatch('$refresh');
-                usleep(100000); // 0.1 second delay
+                usleep(200000); // 0.2 second delay
                 $verifiedResponse = $this->verifyAIResponse($userPrompt, $initialResponse['raw'], $contextLength);
 
                 $this->dispatch('aiThinking', message: "Searching for additional information...");
                 $this->dispatch('$refresh');
-                usleep(100000); // 0.1 second delay
+                usleep(200000); // 0.2 second delay
                 $searchResponse = $this->performSearch($verifiedResponse['raw']);
 
                 $this->dispatch('aiThinking', message: "Validating reasoning...");
                 $this->dispatch('$refresh');
-                usleep(100000); // 0.1 second delay
+                usleep(200000); // 0.2 second delay
                 $validatedReasoning = $this->validateReasoning($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $contextLength);
 
                 $this->dispatch('aiThinking', message: "Finalizing response with validated reasoning...");
                 $this->dispatch('$refresh');
-                usleep(100000); // 0.1 second delay
+                usleep(200000); // 0.2 second delay
                 $finalResponse = $this->getFinalAIResponse($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $validatedReasoning['raw'], $contextLength);
 
                 $this->processAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $validatedReasoning['raw'], $finalResponse['raw']);
@@ -180,10 +180,13 @@ class Room extends Component
         preg_match('/\[\[(.*?)\]\]/', $initialResponse, $matches);
         
         if (empty($matches)) {
-            return "No search necessary";
+            // Use the user's initial prompt as the search query
+            $searchQuery = end($this->messages)['content'];
+        } else {
+            $searchQuery = $matches[1];
         }
 
-        $searchQuery = str_replace('%20', '+', urlencode($matches[1]));
+        $searchQuery = str_replace('%20', '+', urlencode($searchQuery));
         $response = Http::withHeaders([
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8',
             'Accept-Encoding' => 'gzip, deflate, br, zstd',
@@ -221,7 +224,7 @@ class Room extends Component
 
     private function verifyAIResponse($userPrompt, $initialResponse, $contextLength)
     {
-        $verificationPrompt = "User's initial prompt: $userPrompt\n\nYou wrote the following initial response:\n\n---\n\n$initialResponse\n\n---\n\nPlease carefully analyze this response and provide a detailed verification, make sure it is absolutely true and correct. Provide your verification analysis and explanation, pointing out any inconsistencies of logic or factual errors. You MUST search for information by adding a search query in double brackets like this: [[search query]] - Do not be generic when searching and get to the root of the initial user's prompt to provide the most accurate response.";
+        $verificationPrompt = "User's initial prompt: $userPrompt\n\nYou wrote the following initial response:\n\n---\n\n$initialResponse\n\n---\n\nPlease carefully analyze this response and provide a detailed verification, make sure it is absolutely true and correct. Provide your verification analysis and explanation, pointing out any inconsistencies of logic or factual errors. You MUST search for information by adding a search query in double brackets like this: [[search query]] - Do not be generic when searching and get to the root of the initial user's prompt to provide the most accurate response. You MUST add a search query in brackets.";
         
         return $this->getAIResponse($contextLength, $verificationPrompt, false); // Exclude chat history
     }
@@ -384,7 +387,7 @@ class Room extends Component
         ])->post($url, [
             'model' => 'gemma-7b-it',
             'messages' => [
-                ['role' => 'system', 'content' => 'Generate a very short 3-5 word title to describe the following question. Only reply with 3-5 words.'],
+                ['role' => 'system', 'content' => 'Generate a very short 3-5 word title to describe the following question. Only reply with 3-5 words with no formatting or markdown.'],
                 ['role' => 'user', 'content' => $this->userMessage],
             ],
             'max_tokens' => 10, // Limit the response to ensure a short title
@@ -403,7 +406,7 @@ class Room extends Component
             $this->currentChatTitle = $newTitle;
             $this->isFirstMessage = false;
             
-            usleep(100000); // 0.1 second delay
+            usleep(200000); // 0.2 second delay
             $this->loadChats(); // Refresh the chat list
         }
     }

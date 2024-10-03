@@ -1,4 +1,9 @@
-<div class="h-screen flex bg-base-200">
+<div class="bg-base-200 max-h-screen min-h-screen">
+
+    @include('navigation-menu')
+
+<div class="flex bg-base-200 h-[calc(100vh-5em)]">
+
     <!-- Main Chat Area -->
     <div class="flex-1 flex flex-col">
         <!-- Chat Header -->
@@ -13,10 +18,12 @@
                     <div class="chat {{ $message['sender'] === 'user' ? 'chat-end' : 'chat-start' }}" wire:key="{{ $message['id'] }}">
                         <div class="chat-image avatar">
                             <div class="w-10 rounded-full">
-                                <img src="{{ $message['sender'] === 'user' ? asset('images/user-avatar.png') : asset('images/ai-avatar.png') }}" alt="{{ $message['sender'] }} avatar" />
+                                    <span class="w-10 h-10 rounded-full border-2 border-primary bg-base-100 text-white flex items-center justify-center">
+                                        {{ $message['sender'] === 'user' ? strtoupper(substr(Auth::user()->name, 0, 1)) : 'A' }}
+                                    </span>
                             </div>
                         </div>
-                        <div class="chat-header">
+                        <div class="chat-header pb-1 px-1">
                             {{ $message['sender'] === 'user' ? 'You' : 'AI Assistant' }}
                         </div>
                         <div class="chat-bubble {{ $message['sender'] === 'user' ? 'chat-bubble-primary' : 'chat-bubble-neutral-300 p-0 rounded-3xl' }}">
@@ -74,7 +81,7 @@
                                 </div>
                             @endif
                         </div>
-                        <div class="chat-footer opacity-50">
+                        <div class="chat-footer opacity-50 py-1 px-1">
                             {{ \Carbon\Carbon::parse($message['created_at'])->format('h:i A') }}
                         </div>
                     </div>
@@ -183,6 +190,7 @@
             </button>
         </div>
     </div>
+</div>
 </div>
 
 <script>
