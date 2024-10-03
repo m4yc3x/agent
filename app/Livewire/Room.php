@@ -47,6 +47,7 @@ class Room extends Component
                 return [
                     'sender' => $message->sender,
                     'content' => $message->text,
+                    'created_at' => $message->created_at,
                 ];
             })
             ->toArray();
@@ -77,11 +78,11 @@ class Room extends Component
             'slug' => Str::slug($this->userMessage),
         ]);
 
-        $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage];
+        $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at];
 
         // Simulate AI response
         $aiResponse = $this->getAIResponse($this->userMessage);
-        $this->messages[] = ['sender' => 'agent', 'content' => $aiResponse];
+        $this->messages[] = ['sender' => 'agent', 'content' => $aiResponse, 'created_at' => $message->created_at];
 
         Message::create([
             'chat_id' => $this->currentChatId,
