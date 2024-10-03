@@ -22,7 +22,7 @@ class Room extends Component
     public $isThinking = false;
     public $thinkingMessage = '';
     private $chatHistory = [];
-    private $systemPrompt = "You are an AI assistant named AgentOps, an AI-powered agent operations platform. You will never say your actualy model name and only refer to yourself as AgentOps, this is imperative. You will be provided with a question or set of instructions to follow. You will then provide a response with the reasoning for your actions. ";
+    private $systemPrompt = "You are an AI assistant named AgentOps, an AI-powered agent operations platform. You will never say your actualy model name and only refer to yourself as AgentOps, this is imperative. You will be provided with a question or set of instructions to follow. You can search the internet with [[search query]] and you will be provided with search results. You will then provide a response in accordance with the instructions. ";
     private $converter;
     private $maxRetries = 3;
     private $maxContextLength = 8000; // Adjust this based on Groq's limits
@@ -69,8 +69,9 @@ class Room extends Component
                     'id' => $message->id,
                     'initial_response' => $message->{'1'},
                     'verified_response' => $message->{'2'},
-                    'validated_reasoning' => $message->{'3'},
-                    'final_response' => $message->{'4'},
+                    'search_response' => $message->{'3'},
+                    'validated_reasoning' => $message->{'4'},
+                    'final_response' => $message->{'5'},
                 ];
             })
             ->toArray();
@@ -136,54 +137,99 @@ class Room extends Component
                 $this->dispatch('$refresh');
                 $verifiedResponse = $this->verifyAIResponse($userPrompt, $initialResponse['raw'], $contextLength);
 
+                $this->dispatch('aiThinking', message: "Searching for additional information...");
+                $this->dispatch('$refresh');
+                $searchResponse = $this->performSearch($verifiedResponse['raw']);
+
                 $this->dispatch('aiThinking', message: "Validating reasoning...");
                 $this->dispatch('$refresh');
-                $validatedReasoning = $this->validateReasoning($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $contextLength);
+                $validatedReasoning = $this->validateReasoning($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $contextLength);
 
                 $this->dispatch('aiThinking', message: "Finalizing response with validated reasoning...");
                 $this->dispatch('$refresh');
-                $finalResponse = $this->getFinalAIResponse($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $validatedReasoning['raw'], $contextLength);
+                $finalResponse = $this->getFinalAIResponse($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $validatedReasoning['raw'], $contextLength);
 
-                $this->processAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $validatedReasoning['raw'], $finalResponse['raw']);
+                $this->processAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $validatedReasoning['raw'], $finalResponse['raw']);
                 return;
             } catch (\Exception $e) {
-                if ($e->getCode() == 429 && $retries < $this->maxRetries - 1) {
+                if ($e->getCode() >= 400 && $e->getCode() <= 499 && $retries < $this->maxRetries - 1) {
                     $retries++;
                     $contextLength = (int)($contextLength * 0.8); // Reduce context length by 20%
                     $this->dispatch('aiThinking', message: "Retrying with shorter context... (Attempt {$retries})");
                 } else {
-                    $this->processAIResponse([
-                        'raw' => 'Sorry, there was an error processing your request: ' . $e->getMessage(),
-                        'html' => '<p>Sorry, there was an error processing your request: ' . $e->getMessage() . '</p>',
-                    ]);
+                    $this->processAIResponse('', '', '', '', 'Sorry, there was an error processing your request: ' . $e->getMessage() . ' code: ' . $e->getCode());
                     return;
                 }
             }
         }
     }
 
+    private function performSearch($initialResponse)
+    {
+        preg_match('/\[\[(.*?)\]\]/', $initialResponse, $matches);
+        
+        if (empty($matches)) {
+            return "No search necessary";
+        }
+
+        $searchQuery = str_replace('%20', '+', urlencode($matches[1]));
+        $response = Http::withHeaders([
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8',
+            'Accept-Encoding' => 'gzip, deflate, br, zstd',
+            'Accept-Language' => 'en-US,en;q=0.5',
+            'Connection' => 'keep-alive',
+            'Content-Length' => '27',
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            'Host' => 'html.duckduckgo.com',
+            'Origin' => 'https://html.duckduckgo.com',
+            'Priority' => 'u=0, i',
+            'Referer' => 'https://html.duckduckgo.com/',
+            'Sec-Fetch-Dest' => 'document',
+            'Sec-Fetch-Mode' => 'navigate',
+            'Sec-Fetch-Site' => 'same-origin',
+            'Sec-Fetch-User' => '?1',
+            'TE' => 'trailers',
+            'Upgrade-Insecure-Requests' => '1',
+            'User-Agent' => 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0',
+        ])->asForm()->post('https://html.duckduckgo.com/html', [
+            'q' => $searchQuery,
+            'b' => '',
+            'kl' => '',
+            'df' => '',
+        ]);
+
+        if ($response->successful()) {
+            $html = $response->body();
+            $strippedHtml = preg_replace('/<head>.*?<\/head>/s', '', $html);
+            $strippedHtml = strip_tags($strippedHtml);
+            return "Search results for query '$searchQuery':\n\n" . $strippedHtml;
+        } else {
+            return "Search failed: " . $response->status();
+        }
+    }
+
     private function verifyAIResponse($userPrompt, $initialResponse, $contextLength)
     {
-        $verificationPrompt = "User's initial prompt: $userPrompt\n\nYou wrote the following initial response:\n\n---\n\n$initialResponse\n\n---\n\nPlease carefully analyze this response and provide a detailed verification, make sure it is absolutely true and correct. Provide your verification analysis and explanation, pointing out any inconsistencies of logic or factual errors.";
+        $verificationPrompt = "User's initial prompt: $userPrompt\n\nYou wrote the following initial response:\n\n---\n\n$initialResponse\n\n---\n\nPlease carefully analyze this response and provide a detailed verification, make sure it is absolutely true and correct. Provide your verification analysis and explanation, pointing out any inconsistencies of logic or factual errors. You MUST search for information by adding a search query in double brackets like this: [[search query]] - Do not be generic when searching and get to the root of the initial user's prompt to provide the most accurate response.";
         
         return $this->getAIResponse($contextLength, $verificationPrompt, false); // Exclude chat history
     }
 
-    private function validateReasoning($userPrompt, $initialResponse, $verifiedResponse, $contextLength)
+    private function validateReasoning($userPrompt, $initialResponse, $verifiedResponse, $searchResponse, $contextLength)
     {
-        $validationPrompt = "User's initial prompt: $userPrompt\n\nYou are a critical thinking expert. You will be presented with an initial response and a verification of that response. Your task is to thoroughly evaluate the reasoning process and the quality of the **verification**.\n\nInitial response:\n\n---\n\n$initialResponse\n\n---\n\nVerification:\n\n---\n\n$verifiedResponse\n\n---\n\nPlease ensure the quality of the reasoning and verification process. Your goal is to ensure the highest quality of reasoning and response. Don't over complicate things but still be detailed.";
+        $validationPrompt = "User's initial prompt: $userPrompt\n\nYou are a critical thinking expert. You will be presented with an initial response, a verification of that response, and search results. Your task is to thoroughly evaluate the reasoning process and the quality of the **verification**.\n\nInitial response:\n\n---\n\n$initialResponse\n\n---\n\nVerification:\n\n---\n\n$verifiedResponse\n\n---\n\nSearch results:\n\n---\n\n$searchResponse\n\n---\n\nPlease ensure the quality of the reasoning and verification process. Your goal is to ensure the highest quality of reasoning and response. Don't over complicate things but still be detailed.";
         
         return $this->getAIResponse($contextLength, $validationPrompt, false); // Exclude chat history
     }
 
-    private function getFinalAIResponse($userPrompt, $initialResponse, $verifiedResponse, $validatedReasoning, $contextLength)
+    private function getFinalAIResponse($userPrompt, $initialResponse, $verifiedResponse, $searchResponse, $validatedReasoning, $contextLength)
     {
-        $finalPrompt = "User's initial prompt: $userPrompt\n\nYou are tasked with providing the final, most accurate and comprehensive response. You have been through a rigorous process of initial response, verification, and reasoning validation. Here are the steps:\n\nInitial response:\n\n---\n\n$initialResponse\n\n---\n\nVerified response:\n\n---\n\n$verifiedResponse\n\n---\n\nValidated reasoning:\n\n---\n\n$validatedReasoning\n\n---\n\nYour task:\nProvide a final, authoritative response that represents the most accurate, complete, and well-reasoned answer to the user's initial prompt\n\nEnsure your final response is clear, concise, and directly addresses the original query or task.";
+        $finalPrompt = "User's initial prompt: $userPrompt\n\nYou are tasked with providing the final, most accurate and comprehensive response. You have been through a rigorous process of initial response, verification, search, and reasoning validation. Here are the steps:\n\nInitial response:\n\n---\n\n$initialResponse\n\n---\n\nVerified response:\n\n---\n\n$verifiedResponse\n\n---\n\nSearch results:\n\n---\n\n$searchResponse\n\n---\n\nValidated reasoning:\n\n---\n\n$validatedReasoning\n\n---\n\nYour task:\nProvide a final, authoritative response that represents the most accurate, complete, and well-reasoned answer to the user's initial prompt\n\nEnsure your final response is clear, concise, and directly addresses the original query or task.";
         
         return $this->getAIResponse($contextLength, $finalPrompt, false); // Exclude chat history
     }
 
-    private function processAIResponse($initialResponse, $verifiedResponse, $validatedReasoning, $finalResponse)
+    private function processAIResponse($initialResponse, $verifiedResponse, $searchResponse, $validatedReasoning, $finalResponse)
     {
         $this->placeholderMessage = null;
 
@@ -194,8 +240,9 @@ class Room extends Component
             'slug' => '',
             '1' => $initialResponse,
             '2' => $verifiedResponse,
-            '3' => $validatedReasoning,
-            '4' => $finalResponse,
+            '3' => $searchResponse,
+            '4' => $validatedReasoning,
+            '5' => $finalResponse,
         ]);
 
         $this->messages[] = [
@@ -203,6 +250,7 @@ class Room extends Component
             'content' => $finalResponse,
             'initial_response' => $initialResponse,
             'verified_response' => $verifiedResponse,
+            'search_response' => $searchResponse,
             'validated_reasoning' => $validatedReasoning,
             'final_response' => $finalResponse,
             'created_at' => now(),
@@ -239,7 +287,7 @@ class Room extends Component
             'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
         ])->post($url, [
-            'model' => 'llama-3.2-90b-text-preview',
+            'model' => 'gemma-7b-it',
             'messages' => $messages,
         ]);
 

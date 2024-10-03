@@ -46,6 +46,15 @@
                                         <div class="collapse collapse-arrow join-item border-t border-b border-base-300">
                                             <input type="radio" name="accordion-{{ $message['id'] }}" /> 
                                             <div class="collapse-title text-xl font-medium">
+                                                Search Results
+                                            </div>
+                                            <div class="collapse-content"> 
+                                                <div class="monospace">{{ strip_tags($message['search_response'] ?? '') }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="collapse collapse-arrow join-item border-t border-b border-base-300">
+                                            <input type="radio" name="accordion-{{ $message['id'] }}" /> 
+                                            <div class="collapse-title text-xl font-medium">
                                                 Validated Reasoning
                                             </div>
                                             <div class="collapse-content"> 
@@ -151,7 +160,7 @@
                 @endforeach
             </ul>
         </div>
-        <div class="p-4 border-t border-base-300">
+        <div class="p-4 border-t border-base-300 sticky bottom-0 z-10 bg-base-100">
             <button wire:click="createNewChat" class="btn btn-ghost w-full">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
