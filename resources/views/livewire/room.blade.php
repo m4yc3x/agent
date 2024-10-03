@@ -10,7 +10,7 @@
         <div class="flex-1 overflow-hidden flex flex-col">
             <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-messages">
                 @foreach ($messages as $message)
-                    <div class="chat {{ $message['sender'] === 'user' ? 'chat-end' : 'chat-start' }}">
+                    <div class="chat {{ $message['sender'] === 'user' ? 'chat-end' : 'chat-start' }}" wire:key="{{ $message['id'] }}">
                         <div class="chat-image avatar">
                             <div class="w-10 rounded-full">
                                 <img src="{{ $message['sender'] === 'user' ? asset('images/user-avatar.png') : asset('images/ai-avatar.png') }}" alt="{{ $message['sender'] }} avatar" />
@@ -24,7 +24,38 @@
                                 {{ $message['content'] }}
                             @else
                                 <div class="prose max-w-none text-black">
-                                    {!! $message['html_content'] ?? $message['content'] !!}
+                                    @php
+                                        $randomId = rand(1000000, 9999999);
+                                    @endphp
+                                    <div class="join join-vertical w-full">
+                                        <div class="collapse collapse-arrow join-item border border-base-300">
+                                            <input type="radio" name="my-accordion-{{ $randomId }}" /> 
+                                            <div class="collapse-title text-xl font-medium">
+                                                Initial Output
+                                            </div>
+                                            <div class="collapse-content"> 
+                                                {!! Str::markdown($message['initial_response']) !!}
+                                            </div>
+                                        </div>
+                                        <div class="collapse collapse-arrow join-item border border-base-300">
+                                            <input type="radio" name="my-accordion-{{ $randomId }}" /> 
+                                            <div class="collapse-title text-xl font-medium">
+                                                Reasoning Output
+                                            </div>
+                                            <div class="collapse-content"> 
+                                                {!! Str::markdown($message['verified_response']) !!}
+                                            </div>
+                                        </div>
+                                        <div class="collapse collapse-arrow join-item border border-base-300">
+                                            <input type="radio" name="my-accordion-{{ $randomId }}" checked="checked" /> 
+                                            <div class="collapse-title text-xl font-medium">
+                                                Final Output
+                                            </div>
+                                            <div class="collapse-content"> 
+                                                {!! Str::markdown($message['final_response']) !!}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             @endif
                         </div>
@@ -90,7 +121,7 @@
             <h2 class="text-xl font-semibold mb-4 text-primary">Chats</h2>
             <ul class="space-y-2">
                 @foreach ($chats as $chat)
-                    <li>
+                    <li wire:key="{{ $chat->id }}">
                         <a href="#" wire:click.prevent="selectChat({{ $chat->id }})" 
                            class="block p-3 rounded-lg transition-colors duration-200 ease-in-out
                                   {{ $currentChatId === $chat->id 
@@ -139,5 +170,17 @@
 
         // Scroll to bottom when the thinking message appears or disappears
         new MutationObserver(scrollToBottom).observe(chatMessages, { childList: true, subtree: true });
+
+        // Add event listener for accordion toggles
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.tagName === 'SUMMARY') {
+                const details = e.target.parentNode;
+                if (details.tagName === 'DETAILS') {
+                    setTimeout(() => {
+                        scrollToBottom();
+                    }, 10); // Small delay to ensure content has expanded
+                }
+            }
+        });
     });
 </script>

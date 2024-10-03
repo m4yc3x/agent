@@ -21,7 +21,7 @@ class Room extends Component
     public $isLoading = false;
     public $isThinking = false;
     public $thinkingMessage = '';
-    private $chatHistory = []; // This will store the chat history for the current chat
+    private $chatHistory = [];
     private $systemPrompt = "You are an AI assistant named AgentOps, an AI-powered agent operations platform. You will never say your actualy model name and only refer to yourself as AgentOps, this is imperative. You will be provided with a question or set of instructions to follow. You will then provide a response with the reasoning for your actions. ";
     private $converter;
     private $maxRetries = 3;
@@ -66,6 +66,7 @@ class Room extends Component
                     'content' => $message->text,
                     'html_content' => $message->sender === 'agent' ? $this->parseMarkdown($message->text) : null,
                     'created_at' => $message->created_at,
+                    'id' => $message->id,
                 ];
             })
             ->toArray();
@@ -98,7 +99,7 @@ class Room extends Component
             'slug' => '',
         ]);
         
-        $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at];
+        $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at, 'id' => $message->id];
         $this->userMessage = '';
 
         // Add placeholder message
@@ -121,9 +122,16 @@ class Room extends Component
 
         while ($retries < $this->maxRetries) {
             try {
-                $this->dispatch('aiThinking', message: "Generating response...");
-                $aiResponse = $this->getAIResponse($contextLength);
-                $this->processAIResponse($aiResponse);
+                $this->dispatch('aiThinking', message: "Generating initial response...");
+                $initialResponse = $this->getAIResponse($contextLength);
+
+                $this->dispatch('aiThinking', message: "Verifying response...");
+                $verifiedResponse = $this->verifyAIResponse($initialResponse['raw'], $contextLength);
+
+                $this->dispatch('aiThinking', message: "Finalizing response with reasoning...");
+                $finalResponse = $this->getFinalAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $contextLength);
+
+                $this->processAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $finalResponse['raw']);
                 return;
             } catch (\Exception $e) {
                 if ($e->getCode() == 429 && $retries < $this->maxRetries - 1) {
@@ -132,8 +140,8 @@ class Room extends Component
                     $this->dispatch('aiThinking', message: "Retrying with shorter context... (Attempt {$retries})");
                 } else {
                     $this->processAIResponse([
-                        'raw' => 'Sorry, there was an error processing your request.',
-                        'html' => '<p>Sorry, there was an error processing your request.</p>',
+                        'raw' => 'Sorry, there was an error processing your request: ' . $e->getMessage(),
+                        'html' => '<p>Sorry, there was an error processing your request: ' . $e->getMessage() . '</p>',
                     ]);
                     return;
                 }
@@ -141,23 +149,43 @@ class Room extends Component
         }
     }
 
-    private function processAIResponse($aiResponse)
+    private function verifyAIResponse($initialResponse, $contextLength)
+    {
+        $verificationPrompt = "Please verify the correctness of the following response and provide a brief explanation of your reasoning and what should be changed:\n\n" . $initialResponse;
+        
+        return $this->getAIResponse($contextLength, $verificationPrompt);
+    }
+
+    private function getFinalAIResponse($initialResponse, $verifiedResponse, $contextLength)
+    {
+        $finalPrompt = "Given the initial response:\n\n---\n\n$initialResponse\n\n---\n\nAnd the verified reasoning:\n\n---\n\n$verifiedResponse\n\n---\n\nPlease provide a final draft of the initial response, ensuring its correctness according to the verified reasoning. At the end, briefly explain your reasoning for the final answer.";
+        
+        return $this->getAIResponse($contextLength, $finalPrompt);
+    }
+
+    private function processAIResponse($initialResponse, $verifiedResponse, $finalResponse)
     {
         $this->placeholderMessage = null;
 
-        $this->messages[] = [
-            'sender' => 'agent',
-            'content' => $aiResponse['raw'],
-            'html_content' => $aiResponse['html'],
-            'created_at' => now()
-        ];
-
-        Message::create([
+        $message = Message::create([
             'chat_id' => $this->currentChatId,
-            'text' => $aiResponse['raw'],
+            'text' => $finalResponse,
             'sender' => 'agent',
             'slug' => '',
+            '1' => $initialResponse,
+            '2' => $verifiedResponse,
+            '3' => $finalResponse,
         ]);
+
+        $this->messages[] = [
+            'sender' => 'agent',
+            'content' => $finalResponse,
+            'initial_response' => $initialResponse,
+            'verified_response' => $verifiedResponse,
+            'final_response' => $finalResponse,
+            'created_at' => now(),
+            'id' => $message->id,
+        ];
 
         $this->isLoading = false;
         $this->dispatch('messageAdded');
@@ -169,22 +197,28 @@ class Room extends Component
         $this->dispatch('scrollChat');
     }
 
-    private function getAIResponse($contextLength)
+    private function getAIResponse($contextLength, $additionalPrompt = '')
     {
         $apiKey = env('GROQ_KEY');
         $url = 'https://api.groq.com/openai/v1/chat/completions';
 
         $chatHistory = $this->getChatHistory($contextLength);
 
+        $messages = array_merge(
+            [['role' => 'system', 'content' => $this->systemPrompt]],
+            $chatHistory
+        );
+
+        if ($additionalPrompt) {
+            $messages[] = ['role' => 'user', 'content' => $additionalPrompt];
+        }
+
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
         ])->post($url, [
             'model' => 'llama-3.2-90b-text-preview',
-            'messages' => array_merge(
-                [['role' => 'system', 'content' => $this->systemPrompt]],
-                $chatHistory
-            ),
+            'messages' => $messages,
         ]);
 
         if ($response->successful()) {
@@ -231,7 +265,8 @@ class Room extends Component
 
     private function parseMarkdown($text)
     {
-        return $this->converter->convert($text)->getContent();
+        $converter = new CommonMarkConverter(['html_input' => 'allow', 'allow_unsafe_links' => false]);
+        return $converter->convert($text)->getContent();
     }
 
     public function render()

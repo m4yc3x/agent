@@ -15,6 +15,11 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('chat_id');
             $table->longText('text');
+            $table->longText('1')->nullable();
+            $table->longText('2')->nullable();
+            $table->longText('3')->nullable();
+            $table->longText('4')->nullable();
+            $table->longText('5')->nullable();
             $table->string('sender');
             $table->string('slug')->nullable();
             $table->timestamps();
