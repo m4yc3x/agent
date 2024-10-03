@@ -21,7 +21,7 @@ class Room extends Component
     public $isLoading = false;
     public $isThinking = false;
     public $thinkingMessage = '';
-    private $chatHistory = [];
+    private $chatHistory = []; // This will store the chat history for the current chat
     private $systemPrompt = "You are an AI assistant named AgentOps, an AI-powered agent operations platform. You will never say your actualy model name and only refer to yourself as AgentOps, this is imperative. You will be provided with a question or set of instructions to follow. You will then provide a response with the reasoning for your actions. ";
     private $converter;
     private $maxRetries = 3;
