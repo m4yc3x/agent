@@ -23,7 +23,7 @@
                             @if ($message['sender'] === 'user')
                                 {{ $message['content'] }}
                             @else
-                                <div class="prose max-w-none">
+                                <div class="prose max-w-none text-black">
                                     {!! $message['html_content'] ?? $message['content'] !!}
                                 </div>
                             @endif
@@ -33,7 +33,7 @@
                         </div>
                     </div>
                 @endforeach
-                @if ($isThinking)
+                @if ($placeholderMessage)
                     <div class="chat chat-start">
                         <div class="chat-image avatar">
                             <div class="w-10 rounded-full">
@@ -45,9 +45,12 @@
                         </div>
                         <div class="chat-bubble chat-bubble-secondary">
                             <div class="flex items-center">
-                                <span class="mr-2">{{ $thinkingMessage }}</span>
+                                <span class="mr-2">{{ $placeholderMessage['content'] }}</span>
                                 <span class="loading loading-dots loading-sm"></span>
                             </div>
+                        </div>
+                        <div class="chat-footer opacity-50">
+                            {{ \Carbon\Carbon::parse($placeholderMessage['created_at'])->format('h:i A') }}
                         </div>
                     </div>
                 @endif
@@ -59,17 +62,21 @@
                     <input type="text" wire:model.defer="userMessage" placeholder="Type your message here..." class="flex-1 input input-bordered focus:input-primary" :disabled="$isLoading" />
                     <button type="submit" class="btn btn-primary" :disabled="$isLoading">
                         <span wire:loading.remove wire:target="sendMessage">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <span class="flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                            </svg>
+                            </svg>&nbsp;
                             Send
+                            </span>
                         </span>
                         <span wire:loading wire:target="sendMessage">
-                            <svg class="animate-spin h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <span class="flex items-center justify-center">
+                            <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+                            </svg>&nbsp;
                             Sending...
+                            </span>
                         </span>
                     </button>
                 </form>

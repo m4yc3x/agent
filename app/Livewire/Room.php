@@ -26,6 +26,7 @@ class Room extends Component
     private $converter;
     private $maxRetries = 3;
     private $maxContextLength = 8000; // Adjust this based on Groq's limits
+    public $placeholderMessage = null;
 
     public function boot()
     {
@@ -102,6 +103,13 @@ class Room extends Component
         $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at];
         $this->userMessage = '';
 
+        // Add placeholder message
+        $this->placeholderMessage = [
+            'sender' => 'agent',
+            'content' => 'Thinking...',
+            'created_at' => now(),
+        ];
+
         $this->dispatch('messageAdded');
 
         // Get AI response
@@ -138,6 +146,9 @@ class Room extends Component
     {
         $this->isThinking = false;
         $this->thinkingMessage = '';
+
+        // Remove placeholder message
+        $this->placeholderMessage = null;
 
         $this->messages[] = [
             'sender' => 'agent',
