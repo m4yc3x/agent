@@ -69,7 +69,8 @@ class Room extends Component
                     'id' => $message->id,
                     'initial_response' => $message->{'1'},
                     'verified_response' => $message->{'2'},
-                    'final_response' => $message->{'3'},
+                    'validated_reasoning' => $message->{'3'},
+                    'final_response' => $message->{'4'},
                 ];
             })
             ->toArray();
@@ -125,16 +126,25 @@ class Room extends Component
 
         while ($retries < $this->maxRetries) {
             try {
+                $userPrompt = end($this->messages)['content'];
+
                 $this->dispatch('aiThinking', message: "Generating initial response...");
-                $initialResponse = $this->getAIResponse($contextLength);
+                $this->dispatch('$refresh');
+                $initialResponse = $this->getAIResponse($contextLength, $userPrompt, true); // Include chat history
 
                 $this->dispatch('aiThinking', message: "Verifying response...");
-                $verifiedResponse = $this->verifyAIResponse($initialResponse['raw'], $contextLength);
+                $this->dispatch('$refresh');
+                $verifiedResponse = $this->verifyAIResponse($userPrompt, $initialResponse['raw'], $contextLength);
 
-                $this->dispatch('aiThinking', message: "Finalizing response with reasoning...");
-                $finalResponse = $this->getFinalAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $contextLength);
+                $this->dispatch('aiThinking', message: "Validating reasoning...");
+                $this->dispatch('$refresh');
+                $validatedReasoning = $this->validateReasoning($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $contextLength);
 
-                $this->processAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $finalResponse['raw']);
+                $this->dispatch('aiThinking', message: "Finalizing response with validated reasoning...");
+                $this->dispatch('$refresh');
+                $finalResponse = $this->getFinalAIResponse($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $validatedReasoning['raw'], $contextLength);
+
+                $this->processAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $validatedReasoning['raw'], $finalResponse['raw']);
                 return;
             } catch (\Exception $e) {
                 if ($e->getCode() == 429 && $retries < $this->maxRetries - 1) {
@@ -152,21 +162,28 @@ class Room extends Component
         }
     }
 
-    private function verifyAIResponse($initialResponse, $contextLength)
+    private function verifyAIResponse($userPrompt, $initialResponse, $contextLength)
     {
-        $verificationPrompt = "Please verify the correctness of the following response and provide a brief explanation of your reasoning and what should be changed:\n\n" . $initialResponse;
+        $verificationPrompt = "User's initial prompt: $userPrompt\n\nYou wrote the following initial response:\n\n---\n\n$initialResponse\n\n---\n\nPlease carefully analyze this response and provide a detailed verification, make sure it is absolutely true and correct. Provide your verification analysis and explanation, pointing out any inconsistencies of logic or factual errors.";
         
-        return $this->getAIResponse($contextLength, $verificationPrompt);
+        return $this->getAIResponse($contextLength, $verificationPrompt, false); // Exclude chat history
     }
 
-    private function getFinalAIResponse($initialResponse, $verifiedResponse, $contextLength)
+    private function validateReasoning($userPrompt, $initialResponse, $verifiedResponse, $contextLength)
     {
-        $finalPrompt = "Given the initial response:\n\n---\n\n$initialResponse\n\n---\n\nAnd the verified reasoning:\n\n---\n\n$verifiedResponse\n\n---\n\nPlease provide a final draft of the initial response, ensuring its correctness according to the verified reasoning. At the end, briefly explain your reasoning for the final answer.";
+        $validationPrompt = "User's initial prompt: $userPrompt\n\nYou are a critical thinking expert. You will be presented with an initial response and a verification of that response. Your task is to thoroughly evaluate the reasoning process and the quality of the **verification**.\n\nInitial response:\n\n---\n\n$initialResponse\n\n---\n\nVerification:\n\n---\n\n$verifiedResponse\n\n---\n\nPlease ensure the quality of the reasoning and verification process. Your goal is to ensure the highest quality of reasoning and response. Don't over complicate things but still be detailed.";
         
-        return $this->getAIResponse($contextLength, $finalPrompt);
+        return $this->getAIResponse($contextLength, $validationPrompt, false); // Exclude chat history
     }
 
-    private function processAIResponse($initialResponse, $verifiedResponse, $finalResponse)
+    private function getFinalAIResponse($userPrompt, $initialResponse, $verifiedResponse, $validatedReasoning, $contextLength)
+    {
+        $finalPrompt = "User's initial prompt: $userPrompt\n\nYou are tasked with providing the final, most accurate and comprehensive response. You have been through a rigorous process of initial response, verification, and reasoning validation. Here are the steps:\n\nInitial response:\n\n---\n\n$initialResponse\n\n---\n\nVerified response:\n\n---\n\n$verifiedResponse\n\n---\n\nValidated reasoning:\n\n---\n\n$validatedReasoning\n\n---\n\nYour task:\nProvide a final, authoritative response that represents the most accurate, complete, and well-reasoned answer to the user's initial prompt\n\nEnsure your final response is clear, concise, and directly addresses the original query or task.";
+        
+        return $this->getAIResponse($contextLength, $finalPrompt, false); // Exclude chat history
+    }
+
+    private function processAIResponse($initialResponse, $verifiedResponse, $validatedReasoning, $finalResponse)
     {
         $this->placeholderMessage = null;
 
@@ -177,7 +194,8 @@ class Room extends Component
             'slug' => '',
             '1' => $initialResponse,
             '2' => $verifiedResponse,
-            '3' => $finalResponse,
+            '3' => $validatedReasoning,
+            '4' => $finalResponse,
         ]);
 
         $this->messages[] = [
@@ -185,6 +203,7 @@ class Room extends Component
             'content' => $finalResponse,
             'initial_response' => $initialResponse,
             'verified_response' => $verifiedResponse,
+            'validated_reasoning' => $validatedReasoning,
             'final_response' => $finalResponse,
             'created_at' => now(),
             'id' => $message->id,
@@ -200,17 +219,17 @@ class Room extends Component
         $this->dispatch('scrollChat');
     }
 
-    private function getAIResponse($contextLength, $additionalPrompt = '')
+    private function getAIResponse($contextLength, $additionalPrompt = '', $includeChatHistory = false)
     {
         $apiKey = env('GROQ_KEY');
         $url = 'https://api.groq.com/openai/v1/chat/completions';
 
-        $chatHistory = $this->getChatHistory($contextLength);
+        $messages = [['role' => 'system', 'content' => $this->systemPrompt]];
 
-        $messages = array_merge(
-            [['role' => 'system', 'content' => $this->systemPrompt]],
-            $chatHistory
-        );
+        if ($includeChatHistory) {
+            $chatHistory = $this->getChatHistory($contextLength);
+            $messages = array_merge($messages, $chatHistory);
+        }
 
         if ($additionalPrompt) {
             $messages[] = ['role' => 'user', 'content' => $additionalPrompt];
@@ -275,5 +294,23 @@ class Room extends Component
     public function render()
     {
         return view('livewire.room')->layout('layouts.app');
+    }
+
+    public function deleteChat($chatId)
+    {
+        $chat = Chat::where('user_id', Auth::id())->findOrFail($chatId);
+        $chat->delete();
+
+        $this->loadChats();
+
+        if ($this->currentChatId == $chatId) {
+            if ($this->chats->isNotEmpty()) {
+                $this->selectChat($this->chats->first()->id);
+            } else {
+                $this->createNewChat();
+            }
+        }
+
+        $this->dispatch('chatDeleted');
     }
 }

@@ -19,37 +19,46 @@
                         <div class="chat-header">
                             {{ $message['sender'] === 'user' ? 'You' : 'AI Assistant' }}
                         </div>
-                        <div class="chat-bubble {{ $message['sender'] === 'user' ? 'chat-bubble-primary' : 'chat-bubble-secondary' }}">
+                        <div class="chat-bubble {{ $message['sender'] === 'user' ? 'chat-bubble-primary' : 'chat-bubble-neutral-300 p-0 rounded-3xl' }}">
                             @if ($message['sender'] === 'user')
                                 {{ $message['content'] }}
                             @else
-                                <div class="prose max-w-none text-black">
-                                    <div class="join join-vertical w-full">
-                                        <div class="collapse collapse-arrow join-item border border-base-300">
-                                            <input type="radio" name="my-accordion-{{ $message['id'] }}" /> 
+                                <div class="prose max-w-none text-white">
+                                    <div wire:key="{{ $message['id'] }}" class="join join-vertical w-full border-0">
+                                        <div class="collapse collapse-arrow join-item border-b border-base-300">
+                                            <input type="radio" name="accordion-{{ $message['id'] }}" /> 
                                             <div class="collapse-title text-xl font-medium">
                                                 Initial Output
                                             </div>
                                             <div class="collapse-content"> 
-                                                {!! Str::markdown($message['initial_response']) !!}
+                                                <p>{!! Str::markdown($message['initial_response'] ?? '') !!}</p>
                                             </div>
                                         </div>
-                                        <div class="collapse collapse-arrow join-item border border-base-300">
-                                            <input type="radio" name="my-accordion-{{ $message['id'] }}" /> 
+                                        <div class="collapse collapse-arrow join-item border-t border-b border-base-300">
+                                            <input type="radio" name="accordion-{{ $message['id'] }}" /> 
                                             <div class="collapse-title text-xl font-medium">
-                                                Reasoning Output
+                                                Verified Response
                                             </div>
                                             <div class="collapse-content"> 
-                                                {!! Str::markdown($message['verified_response']) !!}
+                                                <p>{!! Str::markdown($message['verified_response'] ?? '') !!}</p>
                                             </div>
                                         </div>
-                                        <div class="collapse collapse-arrow join-item border border-base-300">
-                                            <input type="radio" name="my-accordion-{{ $message['id'] }}" checked="checked" /> 
+                                        <div class="collapse collapse-arrow join-item border-t border-b border-base-300">
+                                            <input type="radio" name="accordion-{{ $message['id'] }}" /> 
+                                            <div class="collapse-title text-xl font-medium">
+                                                Validated Reasoning
+                                            </div>
+                                            <div class="collapse-content"> 
+                                                <p>{!! Str::markdown($message['validated_reasoning'] ?? '') !!}</p>
+                                            </div>
+                                        </div>
+                                        <div class="collapse collapse-arrow join-item border-t border-base-300">
+                                            <input type="radio" name="accordion-{{ $message['id'] }}" checked /> 
                                             <div class="collapse-title text-xl font-medium">
                                                 Final Output
                                             </div>
                                             <div class="collapse-content"> 
-                                                {!! Str::markdown($message['final_response']) !!}
+                                                <p>{!! Str::markdown($message['final_response'] ?? '') !!}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -119,22 +128,31 @@
             <ul class="space-y-2">
                 @foreach ($chats as $chat)
                     <li wire:key="{{ $chat->id }}">
-                        <a href="#" wire:click.prevent="selectChat({{ $chat->id }})" 
-                           class="block p-3 rounded-lg transition-colors duration-200 ease-in-out
+                        <div class="flex items-center justify-between p-3 rounded-lg transition-colors duration-200 ease-in-out
                                   {{ $currentChatId === $chat->id 
                                      ? 'bg-primary text-primary-content' 
                                      : 'hover:bg-base-200' }}">
-                            <div class="font-medium">{{ $chat->title }}</div>
-                            <div class="text-sm opacity-70">
-                                {{ \Carbon\Carbon::parse($chat->updated_at)->format('M d, Y') }}
-                            </div>
-                        </a>
+                            <a href="#" wire:click.prevent="selectChat({{ $chat->id }})" 
+                               class="flex-grow">
+                                <div class="font-medium">{{ $chat->title }}</div>
+                                <div class="text-sm opacity-70">
+                                    {{ \Carbon\Carbon::parse($chat->updated_at)->format('M d, Y') }}
+                                </div>
+                            </a>
+                            <button wire:click="deleteChat({{ $chat->id }})" 
+                                    class="btn btn-ghost btn-sm"
+                                    onclick="confirm('Are you sure you want to delete this chat?') || event.stopImmediatePropagation()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
                     </li>
                 @endforeach
             </ul>
         </div>
         <div class="p-4 border-t border-base-300">
-            <button wire:click="createNewChat" class="btn btn-secondary w-full">
+            <button wire:click="createNewChat" class="btn btn-ghost w-full">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
                 </svg>
@@ -169,15 +187,18 @@
         new MutationObserver(scrollToBottom).observe(chatMessages, { childList: true, subtree: true });
 
         // Add event listener for accordion toggles
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'radio') {
-                const collapseContent = e.target.closest('.collapse').querySelector('.collapse-content');
-                if (collapseContent) {
-                    setTimeout(() => {
-                        scrollToBottom();
-                    }, 10); // Small delay to ensure content has expanded
-                }
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.type === 'checkbox' && e.target.name.startsWith('accordion-')) {
+                setTimeout(() => {
+                    scrollToBottom();
+                }, 100); // Delay to ensure content has expanded
             }
+        });
+
+        // Add event listener for chat deletion
+        Livewire.on('chatDeleted', () => {
+            // You can add any additional UI updates here if needed
+            console.log('Chat deleted successfully');
         });
     });
 </script>
