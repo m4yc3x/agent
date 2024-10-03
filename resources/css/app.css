@@ -7,3 +7,23 @@
 }
 
 /* Add any custom styles here */
+
+.ai-message-content > p {
+    margin-bottom: 0.75em;
+}
+.ai-message-content > p:last-child {
+    margin-bottom: 0;
+}
+.ai-message-content pre {
+    margin: 0.75em 0;
+    padding: 0.5em;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 0.25em;
+    overflow-x: auto;
+}
+.ai-message-content code {
+    font-family: monospace;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.1em 0.2em;
+    border-radius: 0.2em;
+}
