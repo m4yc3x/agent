@@ -24,12 +24,9 @@
                                 {{ $message['content'] }}
                             @else
                                 <div class="prose max-w-none text-black">
-                                    @php
-                                        $randomId = rand(1000000, 9999999);
-                                    @endphp
                                     <div class="join join-vertical w-full">
                                         <div class="collapse collapse-arrow join-item border border-base-300">
-                                            <input type="radio" name="my-accordion-{{ $randomId }}" /> 
+                                            <input type="radio" name="my-accordion-{{ $message['id'] }}" /> 
                                             <div class="collapse-title text-xl font-medium">
                                                 Initial Output
                                             </div>
@@ -38,7 +35,7 @@
                                             </div>
                                         </div>
                                         <div class="collapse collapse-arrow join-item border border-base-300">
-                                            <input type="radio" name="my-accordion-{{ $randomId }}" /> 
+                                            <input type="radio" name="my-accordion-{{ $message['id'] }}" /> 
                                             <div class="collapse-title text-xl font-medium">
                                                 Reasoning Output
                                             </div>
@@ -47,7 +44,7 @@
                                             </div>
                                         </div>
                                         <div class="collapse collapse-arrow join-item border border-base-300">
-                                            <input type="radio" name="my-accordion-{{ $randomId }}" checked="checked" /> 
+                                            <input type="radio" name="my-accordion-{{ $message['id'] }}" checked="checked" /> 
                                             <div class="collapse-title text-xl font-medium">
                                                 Final Output
                                             </div>
@@ -173,9 +170,9 @@
 
         // Add event listener for accordion toggles
         document.addEventListener('click', function(e) {
-            if (e.target && e.target.tagName === 'SUMMARY') {
-                const details = e.target.parentNode;
-                if (details.tagName === 'DETAILS') {
+            if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'radio') {
+                const collapseContent = e.target.closest('.collapse').querySelector('.collapse-content');
+                if (collapseContent) {
                     setTimeout(() => {
                         scrollToBottom();
                     }, 10); // Small delay to ensure content has expanded

@@ -67,6 +67,9 @@ class Room extends Component
                     'html_content' => $message->sender === 'agent' ? $this->parseMarkdown($message->text) : null,
                     'created_at' => $message->created_at,
                     'id' => $message->id,
+                    'initial_response' => $message->{'1'},
+                    'verified_response' => $message->{'2'},
+                    'final_response' => $message->{'3'},
                 ];
             })
             ->toArray();
