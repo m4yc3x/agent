@@ -21,6 +21,8 @@ class Room extends Component
     private $chatHistory = [];
     private $systemPrompt = "You are an AI assistant for AgentOps, an AI-powered agent operations platform. Provide helpful and concise responses to user queries, and be ready to perform tasks like web-scraping and reasoning when requested.";
     private $converter;
+    private $maxRetries = 3;
+    private $maxContextLength = 8000; // Adjust this based on Groq's limits
 
     public function boot()
     {
@@ -96,11 +98,8 @@ class Room extends Component
 
         $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at];
 
-        // Prepare chat history for API request
-        $this->chatHistory[] = ['role' => 'user', 'content' => $this->userMessage];
-
         // Get AI response
-        $aiResponse = $this->getAIResponse();
+        $aiResponse = $this->getAIResponseWithRetry();
 
         $this->messages[] = [
             'sender' => 'agent',
@@ -116,26 +115,48 @@ class Room extends Component
             'slug' => '',
         ]);
 
-        $this->chatHistory[] = ['role' => 'assistant', 'content' => $aiResponse['raw']];
-
         $this->userMessage = '';
         $this->isLoading = false;
         $this->dispatch('messageAdded');
     }
 
-    private function getAIResponse()
+    private function getAIResponseWithRetry()
+    {
+        $retries = 0;
+        $contextLength = $this->maxContextLength;
+
+        while ($retries < $this->maxRetries) {
+            try {
+                return $this->getAIResponse($contextLength);
+            } catch (\Exception $e) {
+                if ($e->getCode() == 429 && $retries < $this->maxRetries - 1) {
+                    $retries++;
+                    $contextLength = (int)($contextLength * 0.8); // Reduce context length by 20%
+                } else {
+                    return [
+                        'raw' => 'Sorry, there was an error processing your request.',
+                        'html' => '<p>Sorry, there was an error processing your request.</p>',
+                    ];
+                }
+            }
+        }
+    }
+
+    private function getAIResponse($contextLength)
     {
         $apiKey = env('GROQ_KEY');
         $url = 'https://api.groq.com/openai/v1/chat/completions';
+
+        $chatHistory = $this->getChatHistory($contextLength);
 
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
         ])->post($url, [
-            'model' => 'llama3-70b-8192',
+            'model' => 'llama-3.2-90b-text-preview',
             'messages' => array_merge(
                 [['role' => 'system', 'content' => $this->systemPrompt]],
-                $this->chatHistory
+                $chatHistory
             ),
         ]);
 
@@ -148,11 +169,36 @@ class Room extends Component
                 'html' => $this->parseMarkdown($rawContent),
             ];
         } else {
-            return [
-                'raw' => 'Sorry, there was an error processing your request.',
-                'html' => '<p>Sorry, there was an error processing your request.</p>',
-            ];
+            throw new \Exception('API request failed', $response->status());
         }
+    }
+
+    private function getChatHistory($contextLength)
+    {
+        $history = [];
+        $currentLength = 0;
+        $messages = Message::where('chat_id', $this->currentChatId)
+                           ->orderBy('created_at', 'desc')
+                           ->get()
+                           ->reverse();
+
+        foreach ($messages as $message) {
+            $messageContent = $message->text;
+            $messageLength = strlen($messageContent);
+
+            if ($currentLength + $messageLength > $contextLength) {
+                break;
+            }
+
+            $history[] = [
+                'role' => $message->sender === 'user' ? 'user' : 'assistant',
+                'content' => $messageContent
+            ];
+
+            $currentLength += $messageLength;
+        }
+
+        return $history;
     }
 
     private function parseMarkdown($text)
