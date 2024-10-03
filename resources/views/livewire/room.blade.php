@@ -32,8 +32,8 @@
             <!-- Message Input -->
             <div class="p-4 bg-base-100 border-t border-base-300">
                 <form wire:submit.prevent="sendMessage" class="flex space-x-2">
-                    <input type="text" wire:model.defer="userMessage" placeholder="Type your message here..." class="flex-1 input input-bordered focus:input-primary" />
-                    <button type="submit" class="btn btn-primary" wire:loading.attr="disabled">
+                    <input type="text" wire:model.defer="userMessage" placeholder="Type your message here..." class="flex-1 input input-bordered focus:input-primary" :disabled="$isLoading" />
+                    <button type="submit" class="btn btn-primary" :disabled="$isLoading">
                         <span wire:loading.remove>
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />

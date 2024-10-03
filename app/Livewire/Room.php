@@ -7,6 +7,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 
 class Room extends Component
 {
@@ -15,6 +16,9 @@ class Room extends Component
     public $chats = [];
     public $currentChatId = null;
     public $currentChatTitle = '';
+    public $isLoading = false;
+    private $chatHistory = [];
+    private $systemPrompt = "You are an AI assistant for AgentOps, an AI-powered agent operations platform. Provide helpful and concise responses to user queries, and be ready to perform tasks like web-scraping and reasoning when requested.";
 
     public function mount()
     {
@@ -71,41 +75,61 @@ class Room extends Component
             return;
         }
 
+        $this->isLoading = true;
+
         $message = Message::create([
             'chat_id' => $this->currentChatId,
             'text' => $this->userMessage,
             'sender' => 'user',
-            'slug' => Str::slug($this->userMessage),
+            'slug' => '',
         ]);
 
         $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at];
 
-        // Simulate AI response
-        $aiResponse = $this->getAIResponse($this->userMessage);
-        $this->messages[] = ['sender' => 'agent', 'content' => $aiResponse, 'created_at' => $message->created_at];
+        // Prepare chat history for API request
+        $this->chatHistory[] = ['role' => 'user', 'content' => $this->userMessage];
+
+        // Get AI response
+        $aiResponse = $this->getAIResponse();
+
+        $this->messages[] = ['sender' => 'agent', 'content' => $aiResponse, 'created_at' => now()];
 
         Message::create([
             'chat_id' => $this->currentChatId,
             'text' => $aiResponse,
             'sender' => 'agent',
-            'slug' => Str::slug($aiResponse),
+            'slug' => '',
         ]);
 
+        $this->chatHistory[] = ['role' => 'assistant', 'content' => $aiResponse];
+
         $this->userMessage = '';
+        $this->isLoading = false;
         $this->dispatch('messageAdded');
     }
 
-    private function getAIResponse($userMessage)
+    private function getAIResponse()
     {
-        // Simulate AI response (replace this with actual AI integration later)
-        $responses = [
-            "That's an interesting point. Can you elaborate?",
-            "I understand. Here's what I think about that...",
-            "Thank you for sharing. Have you considered this perspective?",
-            "That's a great question. Let me explain...",
-            "I see where you're coming from. Here's another way to look at it:",
-        ];
-        return $responses[array_rand($responses)] . " (In response to: '$userMessage')";
+        $apiKey = env('GROQ_KEY');
+        $url = 'https://api.groq.com/openai/v1/chat/completions';
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($url, [
+            'model' => 'llama3-70b-8192',
+            'messages' => array_merge(
+                [['role' => 'system', 'content' => $this->systemPrompt]],
+                $this->chatHistory
+            ),
+        ]);
+
+        if ($response->successful()) {
+            $responseData = $response->json();
+            return $responseData['choices'][0]['message']['content'] ?? 'Sorry, I couldn\'t generate a response.';
+        } else {
+            return 'Sorry, there was an error processing your request.';
+        }
     }
 
     public function render()
