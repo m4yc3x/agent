@@ -139,17 +139,5 @@
 
         // Scroll to bottom when the thinking message appears or disappears
         new MutationObserver(scrollToBottom).observe(chatMessages, { childList: true, subtree: true });
-
-        // Add event listener for accordion toggles
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.tagName === 'SUMMARY') {
-                const details = e.target.parentNode;
-                if (details.tagName === 'DETAILS') {
-                    setTimeout(() => {
-                        scrollToBottom();
-                    }, 10); // Small delay to ensure content has expanded
-                }
-            }
-        });
     });
 </script>
