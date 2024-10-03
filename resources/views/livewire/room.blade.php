@@ -8,7 +8,7 @@
 
         <!-- Chat Messages -->
         <div class="flex-1 overflow-hidden flex flex-col">
-            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-messages">
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-messages" wire:poll.visible>
                 @foreach ($messages as $message)
                     <div class="chat {{ $message['sender'] === 'user' ? 'chat-end' : 'chat-start' }}">
                         <div class="chat-image avatar">
@@ -23,7 +23,9 @@
                             @if ($message['sender'] === 'user')
                                 {{ $message['content'] }}
                             @else
-                                {!! $message['html_content'] ?? $message['content'] !!}
+                                <div class="prose max-w-none">
+                                    {!! $message['html_content'] ?? $message['content'] !!}
+                                </div>
                             @endif
                         </div>
                         <div class="chat-footer opacity-50">
@@ -31,6 +33,24 @@
                         </div>
                     </div>
                 @endforeach
+                @if ($isThinking)
+                    <div class="chat chat-start">
+                        <div class="chat-image avatar">
+                            <div class="w-10 rounded-full">
+                                <img src="{{ asset('images/ai-avatar.png') }}" alt="AI Assistant avatar" />
+                            </div>
+                        </div>
+                        <div class="chat-header">
+                            AI Assistant
+                        </div>
+                        <div class="chat-bubble chat-bubble-secondary">
+                            <div class="flex items-center">
+                                <span class="mr-2">{{ $thinkingMessage }}</span>
+                                <span class="loading loading-dots loading-sm"></span>
+                            </div>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <!-- Message Input -->
@@ -38,13 +58,13 @@
                 <form wire:submit.prevent="sendMessage" class="flex space-x-2">
                     <input type="text" wire:model.defer="userMessage" placeholder="Type your message here..." class="flex-1 input input-bordered focus:input-primary" :disabled="$isLoading" />
                     <button type="submit" class="btn btn-primary" :disabled="$isLoading">
-                        <span wire:loading.remove class="flex items-center justify-center">
+                        <span wire:loading.remove wire:target="sendMessage">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
                             Send
                         </span>
-                        <span wire:loading class="flex items-center justify-center">
+                        <span wire:loading wire:target="sendMessage">
                             <svg class="animate-spin h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -88,3 +108,21 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('livewire:initialized', () => {
+        const chatMessages = document.getElementById('chat-messages');
+        const scrollToBottom = () => {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        };
+
+        // Scroll to bottom on initial load
+        scrollToBottom();
+
+        // Scroll to bottom when new messages are added
+        Livewire.on('scrollChat', scrollToBottom);
+
+        // Scroll to bottom when the thinking message appears or disappears
+        new MutationObserver(scrollToBottom).observe(chatMessages, { childList: true, subtree: true });
+    });
+</script>

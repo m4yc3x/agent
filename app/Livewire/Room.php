@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use League\CommonMark\CommonMarkConverter;
+use Livewire\Attributes\On;
 
 class Room extends Component
 {
@@ -18,6 +19,8 @@ class Room extends Component
     public $currentChatId = null;
     public $currentChatTitle = '';
     public $isLoading = false;
+    public $isThinking = false;
+    public $thinkingMessage = '';
     private $chatHistory = [];
     private $systemPrompt = "You are an AI assistant for AgentOps, an AI-powered agent operations platform. Provide helpful and concise responses to user queries, and be ready to perform tasks like web-scraping and reasoning when requested.";
     private $converter;
@@ -86,6 +89,8 @@ class Room extends Component
         }
 
         $this->isLoading = true;
+        $this->isThinking = true;
+        $this->thinkingMessage = 'Thinking...';
 
         $message = Message::create([
             'chat_id' => $this->currentChatId,
@@ -94,12 +99,45 @@ class Room extends Component
             'slug' => '',
         ]);
         
+        $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at];
+        $this->userMessage = '';
+
         $this->dispatch('messageAdded');
 
-        $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at];
-
         // Get AI response
-        $aiResponse = $this->getAIResponseWithRetry();
+        $this->getAIResponseWithRetry();
+    }
+
+    private function getAIResponseWithRetry()
+    {
+        $retries = 0;
+        $contextLength = $this->maxContextLength;
+
+        while ($retries < $this->maxRetries) {
+            try {
+                $aiResponse = $this->getAIResponse($contextLength);
+                $this->processAIResponse($aiResponse);
+                return;
+            } catch (\Exception $e) {
+                if ($e->getCode() == 429 && $retries < $this->maxRetries - 1) {
+                    $retries++;
+                    $contextLength = (int)($contextLength * 0.8); // Reduce context length by 20%
+                    $this->thinkingMessage = "Retrying with shorter context... (Attempt {$retries})";
+                } else {
+                    $this->processAIResponse([
+                        'raw' => 'Sorry, there was an error processing your request.',
+                        'html' => '<p>Sorry, there was an error processing your request.</p>',
+                    ]);
+                    return;
+                }
+            }
+        }
+    }
+
+    private function processAIResponse($aiResponse)
+    {
+        $this->isThinking = false;
+        $this->thinkingMessage = '';
 
         $this->messages[] = [
             'sender' => 'agent',
@@ -115,31 +153,14 @@ class Room extends Component
             'slug' => '',
         ]);
 
-        $this->userMessage = '';
         $this->isLoading = false;
         $this->dispatch('messageAdded');
     }
 
-    private function getAIResponseWithRetry()
+    #[On('messageAdded')]
+    public function scrollToBottom()
     {
-        $retries = 0;
-        $contextLength = $this->maxContextLength;
-
-        while ($retries < $this->maxRetries) {
-            try {
-                return $this->getAIResponse($contextLength);
-            } catch (\Exception $e) {
-                if ($e->getCode() == 429 && $retries < $this->maxRetries - 1) {
-                    $retries++;
-                    $contextLength = (int)($contextLength * 0.8); // Reduce context length by 20%
-                } else {
-                    return [
-                        'raw' => 'Sorry, there was an error processing your request.',
-                        'html' => '<p>Sorry, there was an error processing your request.</p>',
-                    ];
-                }
-            }
-        }
+        $this->dispatch('scrollChat');
     }
 
     private function getAIResponse($contextLength)
