@@ -2,19 +2,19 @@
     <!-- Primary Navigation Menu -->
     <div class="px-4">
         <div class="w-full flex justify-between h-16">
-            <div class="flex items-center justify-start">
+            <a href="{{ route('dashboard') }}" class="flex items-center justify-start group">
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
+                    <div>
                         <x-application-mark class="block h-9 w-auto" />
-                    </a>
+                    </div>
                 </div>
 
                 <!-- Navigation Links -->
                 <div class="ml-4">
-                    <span class="text-xl text-primary font-bold">AgentOps</span>
+                    <span class="text-xl text-primary font-bold group-hover:text-white transition duration-300">O R I</span>
                 </div>
-            </div>
+            </a>
 
             <div class="hidden sm:flex sm:items-center sm:ms-6">
                 <!-- Teams Dropdown -->

@@ -60,4 +60,4 @@ Remember that each iteration of this project is a step towards creating a more p
 Approach each challenge with creativity and persistence. The solutions you devise today will shape the future of game development for years to come.
 
 ## The Website
-AgentOps is an AI powered agent operations platform. The website is a chat-room style prompt interface where users can prompt an agent to perform a task or answer a question. The agent is a LLM using Groq's API. The user can see the agent's thought process and reasoning. The agent can also perform tasks like web-scraping and reasoning. It needs to go through a series of steps and refine it's output to fix mistakes and improve the output.
+Ori is an AI powered agent operations platform. The website is a chat-room style prompt interface where users can prompt an agent to perform a task or answer a question. The agent is a LLM using Groq's API. The user can see the agent's thought process and reasoning. The agent can also perform tasks like web-scraping and reasoning. It needs to go through a series of steps and refine it's output to fix mistakes and improve the output.

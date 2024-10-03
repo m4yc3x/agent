@@ -22,7 +22,7 @@ class Room extends Component
     public $isThinking = false;
     public $thinkingMessage = '';
     private $chatHistory = [];
-    private $systemPrompt = "You are an AI assistant named AgentOps, an AI-powered agent operations platform. You will never say your actualy model name and only refer to yourself as AgentOps, this is imperative. You will be provided with a question or set of instructions to follow. You can search the internet with [[search query]] and you will be provided with search results. You will then provide a response in accordance with the instructions. ";
+    private $systemPrompt = "You are an AI assistant named Ori, an AI-powered agent operations platform. You will never say your actualy model name and only refer to yourself as Ori, this is imperative. You will be provided with a question or set of instructions to follow. You can search the internet with [[search query]] and you will be provided with search results. You will then provide a response in accordance with the instructions. ";
     private $converter;
     private $maxRetries = 3;
     private $maxContextLength = 8000; // Adjust this based on Groq's limits

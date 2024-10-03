@@ -26,7 +26,7 @@
                         <div class="chat-header pb-1 px-1">
                             {{ $message['sender'] === 'user' ? 'You' : 'AI Assistant' }}
                         </div>
-                        <div class="chat-bubble {{ $message['sender'] === 'user' ? 'chat-bubble-primary' : 'chat-bubble-neutral-300 p-0 rounded-3xl' }}">
+                        <div class="chat-bubble {{ $message['sender'] === 'user' ? 'chat-bubble-primary' : 'chat-bubble bg-neutral-900 p-0 rounded-3xl' }}">
                             @if ($message['sender'] === 'user')
                                 {{ $message['content'] }}
                             @else
@@ -56,7 +56,7 @@
                                                 Search Results
                                             </div>
                                             <div class="collapse-content"> 
-                                                <div class="monospace">{{ strip_tags($message['search_response'] ?? '') }}</div>
+                                                <div class="monospace text-xs">{{ strip_tags($message['search_response'] ?? '') }}</div>
                                             </div>
                                         </div>
                                         <div class="collapse collapse-arrow join-item border-t border-b border-base-300">

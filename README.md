@@ -1,6 +1,6 @@
-# AgentOps - AI-Powered Agent Operations Platform
+# Ori - AI-Powered Agent Operations Platform
 
-AgentOps is an advanced AI-powered agent operations platform built with Laravel and Livewire. It provides a chat-room style interface where users can interact with an AI agent powered by Groq's API. The agent can perform tasks, answer questions, and engage in multi-step reasoning processes.
+Ori is an advanced AI-powered agent operations platform built with Laravel and Livewire. It provides a chat-room style interface where users can interact with an AI agent powered by Groq's API. The agent can perform tasks, answer questions, and engage in multi-step reasoning processes.
 
 ## Features
 
