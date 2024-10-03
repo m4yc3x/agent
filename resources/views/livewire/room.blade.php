@@ -3,7 +3,7 @@
     <div class="flex-1 flex flex-col">
         <!-- Chat Header -->
         <header class="bg-base-100 shadow-md p-4">
-            <h1 class="text-2xl font-bold text-primary">{{ $currentChatTitle }}</h1>
+            <h1 class="text-2xl font-bold text-primary" wire:poll.5s="$refresh">{{ $currentChatTitle }}</h1>
         </header>
 
         <!-- Chat Messages -->
@@ -148,13 +148,22 @@
                                     {{ \Carbon\Carbon::parse($chat->updated_at)->format('M d, Y') }}
                                 </div>
                             </a>
-                            <button wire:click="deleteChat({{ $chat->id }})" 
-                                    class="btn btn-ghost btn-sm"
-                                    onclick="confirm('Are you sure you want to delete this chat?') || event.stopImmediatePropagation()">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
+                            <div>
+                                <button wire:click="deleteChat({{ $chat->id }})" 
+                                        class="btn btn-ghost btn-sm"
+                                        onclick="confirm('Are you sure you want to delete this chat?') || event.stopImmediatePropagation()"
+                                        wire:loading.remove wire:target="selectChat({{ $chat->id }})">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                                <div wire:loading wire:target="selectChat({{ $chat->id }})" class="btn btn-ghost btn-sm">
+                                    <svg class="animate-spin h-5 w-5 mt-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
                     </li>
                 @endforeach
@@ -162,10 +171,15 @@
         </div>
         <div class="p-4 border-t border-base-300 sticky bottom-0 z-10 bg-base-100">
             <button wire:click="createNewChat" class="btn btn-ghost w-full">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-                </svg>
-                New Chat
+
+                    <svg wire:loading.remove wire:target="createNewChat" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                    <svg wire:loading wire:target="createNewChat" class="animate-spin h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    New Chat
             </button>
         </div>
     </div>

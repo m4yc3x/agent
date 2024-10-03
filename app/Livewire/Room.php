@@ -27,6 +27,7 @@ class Room extends Component
     private $maxRetries = 3;
     private $maxContextLength = 8000; // Adjust this based on Groq's limits
     public $placeholderMessage = null;
+    public $isFirstMessage = true;
 
     public function boot()
     {
@@ -105,6 +106,11 @@ class Room extends Component
         ]);
         
         $this->messages[] = ['sender' => 'user', 'content' => $this->userMessage, 'created_at' => $message->created_at, 'id' => $message->id];
+        
+        if ($this->isFirstMessage) {
+            $this->updateChatTitle();
+        }
+        
         $this->userMessage = '';
 
         // Add placeholder message
@@ -131,22 +137,27 @@ class Room extends Component
 
                 $this->dispatch('aiThinking', message: "Generating initial response...");
                 $this->dispatch('$refresh');
+                usleep(100000); // 0.1 second delay
                 $initialResponse = $this->getAIResponse($contextLength, $userPrompt, true); // Include chat history
 
                 $this->dispatch('aiThinking', message: "Verifying response...");
                 $this->dispatch('$refresh');
+                usleep(100000); // 0.1 second delay
                 $verifiedResponse = $this->verifyAIResponse($userPrompt, $initialResponse['raw'], $contextLength);
 
                 $this->dispatch('aiThinking', message: "Searching for additional information...");
                 $this->dispatch('$refresh');
+                usleep(100000); // 0.1 second delay
                 $searchResponse = $this->performSearch($verifiedResponse['raw']);
 
                 $this->dispatch('aiThinking', message: "Validating reasoning...");
                 $this->dispatch('$refresh');
+                usleep(100000); // 0.1 second delay
                 $validatedReasoning = $this->validateReasoning($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $contextLength);
 
                 $this->dispatch('aiThinking', message: "Finalizing response with validated reasoning...");
                 $this->dispatch('$refresh');
+                usleep(100000); // 0.1 second delay
                 $finalResponse = $this->getFinalAIResponse($userPrompt, $initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $validatedReasoning['raw'], $contextLength);
 
                 $this->processAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $searchResponse, $validatedReasoning['raw'], $finalResponse['raw']);
@@ -360,5 +371,40 @@ class Room extends Component
         }
 
         $this->dispatch('chatDeleted');
+    }
+
+    private function updateChatTitle()
+    {
+        $apiKey = env('GROQ_KEY');
+        $url = 'https://api.groq.com/openai/v1/chat/completions';
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($url, [
+            'model' => 'gemma-7b-it',
+            'messages' => [
+                ['role' => 'system', 'content' => 'Generate a very short 3-5 word title to describe the following question. Only reply with 3-5 words.'],
+                ['role' => 'user', 'content' => $this->userMessage],
+            ],
+            'max_tokens' => 10, // Limit the response to ensure a short title
+        ]);
+
+        if ($response->successful()) {
+            $responseData = $response->json();
+            $newTitle = $responseData['choices'][0]['message']['content'] ?? 'New Chat';
+            
+            // Trim and limit the title to 5 words
+            $newTitle = implode(' ', array_slice(explode(' ', trim($newTitle)), 0, 5));
+            
+            $chat = Chat::find($this->currentChatId);
+            $chat->update(['title' => $newTitle]);
+            
+            $this->currentChatTitle = $newTitle;
+            $this->isFirstMessage = false;
+            
+            usleep(100000); // 0.1 second delay
+            $this->loadChats(); // Refresh the chat list
+        }
     }
 }
