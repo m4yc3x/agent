@@ -121,9 +121,16 @@ class Room extends Component
 
         while ($retries < $this->maxRetries) {
             try {
-                $this->dispatch('aiThinking', message: "Generating response...");
-                $aiResponse = $this->getAIResponse($contextLength);
-                $this->processAIResponse($aiResponse);
+                $this->dispatch('aiThinking', message: "Generating initial response...");
+                $initialResponse = $this->getAIResponse($contextLength);
+
+                $this->dispatch('aiThinking', message: "Verifying response...");
+                $verifiedResponse = $this->verifyAIResponse($initialResponse['raw'], $contextLength);
+
+                $this->dispatch('aiThinking', message: "Finalizing response with reasoning...");
+                $finalResponse = $this->getFinalAIResponse($initialResponse['raw'], $verifiedResponse['raw'], $contextLength);
+
+                $this->processAIResponse($finalResponse);
                 return;
             } catch (\Exception $e) {
                 if ($e->getCode() == 429 && $retries < $this->maxRetries - 1) {
@@ -139,6 +146,49 @@ class Room extends Component
                 }
             }
         }
+    }
+
+    private function verifyAIResponse($initialResponse, $contextLength)
+    {
+        $verificationPrompt = "Please verify the correctness of the following response and make any necessary corrections:\n\n" . $initialResponse;
+        
+        return $this->getAIResponse($contextLength, $verificationPrompt);
+    }
+
+    private function getFinalAIResponse($initialResponse, $verifiedResponse, $contextLength)
+    {
+        $finalPrompt = "Given the initial response:\n\n$initialResponse\n\nAnd the verified response:\n\n$verifiedResponse\n\nPlease provide a final response, ensuring its correctness. At the end, briefly explain your reasoning for the final answer.";
+        
+        $finalResponse = $this->getAIResponse($contextLength, $finalPrompt);
+        
+        // Format the response with accordions
+        $formattedResponse = $this->formatResponseWithAccordions($initialResponse, $verifiedResponse, $finalResponse['raw']);
+        
+        return [
+            'raw' => $formattedResponse,
+            'html' => $this->parseMarkdown($formattedResponse),
+        ];
+    }
+
+    private function formatResponseWithAccordions($initialResponse, $verifiedResponse, $finalResponse)
+    {
+        return <<<MARKDOWN
+{$finalResponse}
+
+<details>
+<summary>Initial AI Output</summary>
+
+{$initialResponse}
+
+</details>
+
+<details>
+<summary>Verified AI Output</summary>
+
+{$verifiedResponse}
+
+</details>
+MARKDOWN;
     }
 
     private function processAIResponse($aiResponse)
@@ -169,22 +219,28 @@ class Room extends Component
         $this->dispatch('scrollChat');
     }
 
-    private function getAIResponse($contextLength)
+    private function getAIResponse($contextLength, $additionalPrompt = '')
     {
         $apiKey = env('GROQ_KEY');
         $url = 'https://api.groq.com/openai/v1/chat/completions';
 
         $chatHistory = $this->getChatHistory($contextLength);
 
+        $messages = array_merge(
+            [['role' => 'system', 'content' => $this->systemPrompt]],
+            $chatHistory
+        );
+
+        if ($additionalPrompt) {
+            $messages[] = ['role' => 'user', 'content' => $additionalPrompt];
+        }
+
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
         ])->post($url, [
             'model' => 'llama-3.2-90b-text-preview',
-            'messages' => array_merge(
-                [['role' => 'system', 'content' => $this->systemPrompt]],
-                $chatHistory
-            ),
+            'messages' => $messages,
         ]);
 
         if ($response->successful()) {
