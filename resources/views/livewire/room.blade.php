@@ -1,5 +1,6 @@
 <div class="bg-base-200 max-h-screen min-h-screen">
 
+    @section('title', 'Dashboard')
     @include('navigation-menu')
 
 <div class="flex bg-base-200 h-[calc(100vh-5em)]">

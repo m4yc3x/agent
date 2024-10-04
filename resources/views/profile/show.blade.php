@@ -1,5 +1,6 @@
 <x-app-layout>
     
+    @section('title', 'Profile')
     @include('navigation-menu')
 
     <x-slot name="header">
